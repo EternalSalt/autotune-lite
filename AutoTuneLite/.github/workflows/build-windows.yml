@@ -1,0 +1,38 @@
+name: Build Windows installer
+
+on:
+  workflow_dispatch:        # adds a "Run workflow" button on the Actions tab
+  push:
+    tags: [ 'v*' ]
+
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure (x64)
+        run: cmake -B build -G "Visual Studio 17 2022" -A x64
+
+      - name: Build plugin
+        run: cmake --build build --config Release
+
+      - name: Check the plugin was produced
+        shell: pwsh
+        run: |
+          Get-ChildItem -Recurse "build/AutoTuneLite_artefacts/Release" | Select-Object -ExpandProperty FullName
+          if (-not (Test-Path "build/AutoTuneLite_artefacts/Release/VST3/AutoTune Lite.vst3")) { throw "VST3 was not built" }
+
+      - name: Install Inno Setup
+        run: choco install innosetup -y --no-progress
+
+      - name: Build installer
+        shell: pwsh
+        run: '& "C:\Program Files (x86)\Inno Setup 6\ISCC.exe" installer\AutoTuneLite.iss'
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: AutoTuneLite-Windows-Installer
+          path: installer/Output/*.exe
+          if-no-files-found: error
